@@ -64,13 +64,6 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 		const line = document.lineAt(i);
 		const text = line.text;
 
-		//make a switch statement to check if the line contains a start tag, an end tag, or content
-		//first check what the line contains
-		//if the line contains a start tag, check if im already loading content, if im not, load the content
-		//if the line contains an end tag, check if im already loading content, if im not, report an error
-		//if the line contains content, check if im already loading content, if im not, ignore the line
-		//if im already loading content, add the line to the user story content
-
 		switch(true) {
 			case endTagRegex.test(text): //found an END tag
 				if(loadingContent) { //if I'm already loading content, stop loading the content -> I found the end tag
