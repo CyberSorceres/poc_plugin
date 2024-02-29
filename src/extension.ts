@@ -3,6 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils')
 
+
+let workingDirectory: string | undefined;
+let projectId: string;
+
 class UserStory {
 	tag: string;
 	content: string;
@@ -34,7 +38,6 @@ class UserStory {
 }
 
 
-let workingDirectory: string | undefined;
 
 function setWorkingDirectory(): void {
     const folders = vscode.workspace.workspaceFolders;
@@ -54,6 +57,7 @@ function getWorkingDirectory(): string | undefined {
 // Function to parse the open file for tags
 function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	const userStories: UserStory[] = [];
+	const projectTagRegex = /@PROJECT-(\d+)/g;
 	const initialTagRegex = /@USERSTORY-(\d+)/g;
 	//end tag is @USERSTORY-END then a newline
 	const endTagRegex = /@USERSTORY-END/g;
@@ -62,8 +66,19 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	let loadingContent = false;
 	let currentLineLogged = 0;
 
-	//for each line in the file check if it contains a start tag
-	for (let i = 0; i < document.lineCount; i++) {
+	//first line of the file must contain project tag
+	const firstLine = document.lineAt(0).text;
+	if(projectTagRegex.test(firstLine)) {
+		projectId = firstLine.match(projectTagRegex)![0].split('-')[1];
+		vscode.window.showInformationMessage('Project tag found: ' + projectId);
+	}
+	else {
+		vscode.window.showErrorMessage('No project tag found: the project tag must appear in the first line of the document');
+		return [userStories, 'NO PROJECT TAG WAS FOUND ON THE FIRST LINE'];
+	}
+
+	//for each line in the file check if it contains a start tag, startting on the second line
+	for (let i = 1; i < document.lineCount; i++) {
 		const line = document.lineAt(i);
 		const text = line.text;
 
