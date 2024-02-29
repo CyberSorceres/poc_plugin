@@ -190,6 +190,40 @@ function createTests(UserStories: UserStory[]) {
     });
 }
 
+async function chiamataAPI(stringaUserStory: string, stringaCodice: string) {
+    try {
+		// Creazione stringhe di collegamento
+		const stringaPreUserStory = "Elabora un test considerata la seguente user story";
+		const stringaPreCodice = " e il seguente codice che dovrebbe soddisfare la user story";
+        
+		// Combinazione della user story con il codice corrispondente
+        const combinazione = stringaPreUserStory + stringaUserStory + stringaPreCodice + stringaCodice;
+        
+        // Costruzione URL dell'endpoint API (Da aggiungere l'ENDPOINT)
+        const url = `URL_ENDPOINT_API?parametro1=${encodeURIComponent(combinazione)}`;
+
+		// Viene fatta la richiesta all'API e viene salvata la risposta
+        const response = await fetch(url);
+
+		// Viene controllata la risposta
+        if (!response.ok) {
+            throw new Error('Errore nella chiamata API');
+        }
+
+		// Ottengo la risposta dell'API in formato JSON
+        const data = await response.json();
+		// Dal formato JSON la risposta viene convertita a stringa
+		const fromJsonToString = JSON.stringify(data);
+		// Viene ritornata la risposta dell'API in formato stringa
+        return fromJsonToString;
+
+		// In caso di errore di collegamento viene mostrato l'errore nel console log e non viene ritornato nulla
+    } catch (error) {
+        console.error('Si è verificato un errore durante la chiamata API:', error);
+        return null;
+    }
+}
+
 function runTests() {
     // Get the currently active workspace folder
     const workspaceFolder = getWorkingDirectory();
