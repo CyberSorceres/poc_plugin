@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils')
+const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils');
 
 class UserStory {
 	tag: string;
