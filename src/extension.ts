@@ -1,82 +1,8 @@
-//import { error } from 'console';
-//import { report } from 'process';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils')
 
-function folderExists(path: string): boolean {
-    try {
-        return fs.statSync(path).isDirectory();
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            // ENOENT: no such file or directory
-            return false;
-        } else {
-            // Other error, e.g., permission denied
-            throw error;
-        }
-    }
-}
-
-function fileExists(filePath: string): boolean {
-    try {
-        return fs.statSync(filePath).isFile();
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-            // ENOENT: no such file or directory
-            return false;
-        } else {
-            // Other error, e.g., permission denied
-            throw error;
-        }
-    }
-}
-
-function createFolder(folderPath: string): void {
-    try {
-        fs.mkdirSync(folderPath);
-        console.log(`Folder created at ${folderPath}`);
-    } catch (error) {
-        console.error(`Error creating folder: ${error}`);
-    }
-}
-
-function createFile(filePath: string, fileContent: string = ''): void {
-    try {
-        fs.writeFileSync(filePath, fileContent);
-        console.log(`File created at ${filePath}`);
-    } catch (error) {
-        console.error(`Error creating file: ${error}`);
-    }
-}
-
-function wipeFile(filePath: string): void {
-    try {
-        fs.writeFileSync(filePath, ''); // Write an empty string to the file
-        console.log(`File wiped successfully: ${filePath}`);
-    } catch (error) {
-        console.error(`Error wiping file: ${error}`);
-    }
-}
-
-function getActiveFileName(): string | undefined {
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-        // Get the URI of the currently open file
-        const uri = editor.document.uri;
-        // Get the base name (name without path) of the file
-        const fileName = vscode.workspace.asRelativePath(uri);
-        // Remove the file extension
-        const fileNameWithoutExtension = fileName.replace(/\.[^/.]+$/, "");
-        return fileNameWithoutExtension;
-    } else {
-        // No file is currently open
-        return undefined;
-    }
-}
-
-
-//class for the user stories
 class UserStory {
 	tag: string;
 	content: string;
@@ -97,30 +23,6 @@ class UserStory {
 		console.log(`Tag: ${this.tag}, Content: ${this.content}`);
 	}
 
-	setTag(tag: string) {
-		this.tag = tag;
-	}
-
-	setContent(content: string) {
-		this.content = content;
-	}
-
-	setDescription(description: string) {
-		this.description = description;
-	}
-
-	getTag() {
-		return this.tag;
-	}
-
-	getContent() {
-		return this.content;
-	}
-
-	getDescription() {
-		return this.description;
-	}
-
 	mockTest(description: string){
 	    return `
 		test('${description}', () => {
@@ -129,6 +31,24 @@ class UserStory {
 		});
 		`;
 	}
+}
+
+
+let workingDirectory: string | undefined;
+
+function setWorkingDirectory(): void {
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders && folders.length > 0) {
+        // Assuming you want to use the first workspace folder as the working directory
+        workingDirectory = folders[0].uri.fsPath;
+        vscode.window.showInformationMessage('Working directory set successfully.');
+    } else {
+        vscode.window.showErrorMessage('No workspace folders found.');
+    }
+}
+
+function getWorkingDirectory(): string | undefined {
+    return workingDirectory;
 }
 
 // Function to parse the open file for tags
@@ -187,9 +107,8 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 
 }
 
-
+//TODO
 function getUserStoriesFromDB(UserStories: UserStory[]) {
-
 
 }
 
@@ -283,23 +202,6 @@ function runTests() {
     const terminal = vscode.window.createTerminal('Jest');
     terminal.sendText('npm test', true); // or any other Jest command
     terminal.show();
-}
-
-let workingDirectory: string | undefined;
-
-function setWorkingDirectory(): void {
-    const folders = vscode.workspace.workspaceFolders;
-    if (folders && folders.length > 0) {
-        // Assuming you want to use the first workspace folder as the working directory
-        workingDirectory = folders[0].uri.fsPath;
-        vscode.window.showInformationMessage('Working directory set successfully.');
-    } else {
-        vscode.window.showErrorMessage('No workspace folders found.');
-    }
-}
-
-function getWorkingDirectory(): string | undefined {
-    return workingDirectory;
 }
 
 function createJestConfig(): void {
