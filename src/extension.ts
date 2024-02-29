@@ -199,6 +199,8 @@ function createTests(UserStories: UserStory[]) {
         wipeFile(testFilePath);
     }
 
+	fs.appendFileSync(testFilePath, 'import {expect, test} from \'vitest\'\r\n');
+
     UserStories.forEach(story => {
         const mockTest = story.mockTest('This is a test for the user story #' + story.tag);
         fs.appendFileSync(testFilePath, mockTest);
@@ -213,22 +215,22 @@ function runTests() {
         return;
     }
 
-    // Run Jest command in the integrated terminal
-    const terminal = vscode.window.createTerminal('Jest');
-    terminal.sendText('npm test', true); // or any other Jest command
+    // Run ViTest command in the integrated terminal
+    const terminal = vscode.window.createTerminal('ViTest');
+    terminal.sendText('npm test', true);
     terminal.show();
 }
 
-function createJestConfig(): void {
+function createViTestConfig(): void {
     const workspacePath = getWorkingDirectory();
     if (!workspacePath) {
-        vscode.window.showErrorMessage('Cannot generate Jest configuration: Workspace not found.');
+        vscode.window.showErrorMessage('Cannot generate ViTest configuration: Workspace not found.');
         return;
     }
 
-    const jestConfigPath = path.join(workspacePath, 'jest.config.js');
-    if (fs.existsSync(jestConfigPath)) {
-        vscode.window.showWarningMessage('Jest configuration already exists in the workspace.');
+    const viTestConfigPath = path.join(workspacePath, 'vitest.config.js');
+    if (fs.existsSync(viTestConfigPath)) {
+        vscode.window.showWarningMessage('ViTest configuration already exists in the workspace.');
         return;
     }
 
@@ -238,7 +240,7 @@ function createJestConfig(): void {
         createPackageJson(packageJsonPath);
     }
 
-    const jestConfigContent = `
+    const viTestConfigContent = `
     module.exports = {
         preset: 'ts-jest',
         testEnvironment: 'node',
@@ -246,8 +248,8 @@ function createJestConfig(): void {
     };
     `;
 
-    fs.writeFileSync(jestConfigPath, jestConfigContent);
-    vscode.window.showInformationMessage('Jest configuration generated successfully.');
+    fs.writeFileSync(viTestConfigPath, viTestConfigContent);
+    vscode.window.showInformationMessage('ViTest configuration generated successfully.');
 }
 
 function createPackageJson(packageJsonPath: string): void {
@@ -257,10 +259,10 @@ function createPackageJson(packageJsonPath: string): void {
         "version": "1.0.0",
         "description": "My project description",
         "scripts": {
-            "test": "jest"
+            "test": "vitest"
         },
         "devDependencies": {
-            "jest": "^27.4.7",
+            "vitest": "^1.0.0",
             "@types/jest": "^27.0.4",
             "ts-jest": "^27.0.5"
         }
@@ -277,7 +279,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Extension "exttest" is now active!');
 
 	setWorkingDirectory();
-	createJestConfig();
+	createViTestConfig();
 
 	let disposable = vscode.commands.registerCommand('exttest.generateTests', generateTests);
 	let disposable2 = vscode.commands.registerCommand('exttest.runTests', runTests);
