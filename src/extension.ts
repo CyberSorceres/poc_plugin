@@ -1,6 +1,80 @@
 //import { error } from 'console';
 //import { report } from 'process';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+
+function folderExists(path: string): boolean {
+    try {
+        return fs.statSync(path).isDirectory();
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            // ENOENT: no such file or directory
+            return false;
+        } else {
+            // Other error, e.g., permission denied
+            throw error;
+        }
+    }
+}
+
+function fileExists(filePath: string): boolean {
+    try {
+        return fs.statSync(filePath).isFile();
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            // ENOENT: no such file or directory
+            return false;
+        } else {
+            // Other error, e.g., permission denied
+            throw error;
+        }
+    }
+}
+
+function createFolder(folderPath: string): void {
+    try {
+        fs.mkdirSync(folderPath);
+        console.log(`Folder created at ${folderPath}`);
+    } catch (error) {
+        console.error(`Error creating folder: ${error}`);
+    }
+}
+
+function createFile(filePath: string, fileContent: string = ''): void {
+    try {
+        fs.writeFileSync(filePath, fileContent);
+        console.log(`File created at ${filePath}`);
+    } catch (error) {
+        console.error(`Error creating file: ${error}`);
+    }
+}
+
+function wipeFile(filePath: string): void {
+    try {
+        fs.writeFileSync(filePath, ''); // Write an empty string to the file
+        console.log(`File wiped successfully: ${filePath}`);
+    } catch (error) {
+        console.error(`Error wiping file: ${error}`);
+    }
+}
+
+function getActiveFileName(): string | undefined {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+        // Get the URI of the currently open file
+        const uri = editor.document.uri;
+        // Get the base name (name without path) of the file
+        const fileName = vscode.workspace.asRelativePath(uri);
+        // Remove the file extension
+        const fileNameWithoutExtension = fileName.replace(/\.[^/.]+$/, "");
+        return fileNameWithoutExtension;
+    } else {
+        // No file is currently open
+        return undefined;
+    }
+}
+
 
 //class for the user stories
 class UserStory {
@@ -45,6 +119,15 @@ class UserStory {
 
 	getDescription() {
 		return this.description;
+	}
+
+	mockTest(description: string){
+	    return `
+		test('${description}', () => {
+			// Write your test code here
+			expect(true).toBe(true); // Example test assertion
+		});
+		`;
 	}
 }
 
@@ -104,20 +187,14 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 
 }
 
-function connectToDB() {
-	//connect to the database
-
-}
 
 function getUserStoriesFromDB(UserStories: UserStory[]) {
 
-	//for esch user story, get the description from the database
 
 }
 
-
 // COMMAND runtTests: Run the tests for the user story tags in the current file
-async function runTests() {
+async function generateTests() {
 	
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -151,59 +228,143 @@ async function runTests() {
 		vscode.window.showErrorMessage('There are errors in the file, check the output console for more information', 'OK');
 	}
 
-	getUserStoriesFromDB(US);
+	createTests(US);
+}
+
+//given an UserStory array, create a test for each of them
+function createTests(UserStories: UserStory[]) {
+
+	const workingDirectory = getWorkingDirectory();
+
+	if(workingDirectory === undefined)
+	{
+		vscode.window.showErrorMessage('The working directory is not set, please set it and reload the extension');
+		return;
+	}
+
+	const testDirectoryPath = path.join(workingDirectory, 'TEST');
+	const openFileName = getActiveFileName();
+	if(openFileName === undefined)
+	{
+		vscode.window.showErrorMessage('no file currently open, open a file to gerate it\'s tests');
+		return;
+	}
+	
+	const testFileName = openFileName + '.test.js';
+	const testFilePath = path.join(testDirectoryPath, testFileName);
 
 
+    if (!folderExists(testDirectoryPath)) {
+        createFolder(testDirectoryPath);
+    }
+
+    if (!fileExists(testFilePath)) {
+        createFile(testFilePath);
+    } else {
+        // Wipe file
+        wipeFile(testFilePath);
+    }
+
+    UserStories.forEach(story => {
+        const mockTest = story.mockTest('This is a test for the user story #' + story.tag);
+        fs.appendFileSync(testFilePath, mockTest);
+    });
+}
+
+function runTests() {
+    // Get the currently active workspace folder
+    const workspaceFolder = getWorkingDirectory();
+    if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder found.');
+        return;
+    }
+
+    // Run Jest command in the integrated terminal
+    const terminal = vscode.window.createTerminal('Jest');
+    terminal.sendText('npm test', true); // or any other Jest command
+    terminal.show();
+}
+
+let workingDirectory: string | undefined;
+
+function setWorkingDirectory(): void {
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders && folders.length > 0) {
+        // Assuming you want to use the first workspace folder as the working directory
+        workingDirectory = folders[0].uri.fsPath;
+        vscode.window.showInformationMessage('Working directory set successfully.');
+    } else {
+        vscode.window.showErrorMessage('No workspace folders found.');
+    }
+}
+
+function getWorkingDirectory(): string | undefined {
+    return workingDirectory;
+}
+
+function createJestConfig(): void {
+    const workspacePath = getWorkingDirectory();
+    if (!workspacePath) {
+        vscode.window.showErrorMessage('Cannot generate Jest configuration: Workspace not found.');
+        return;
+    }
+
+    const jestConfigPath = path.join(workspacePath, 'jest.config.js');
+    if (fs.existsSync(jestConfigPath)) {
+        vscode.window.showWarningMessage('Jest configuration already exists in the workspace.');
+        return;
+    }
+
+    // Create package.json if it doesn't exist
+    const packageJsonPath = path.join(workspacePath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+        createPackageJson(packageJsonPath);
+    }
+
+    const jestConfigContent = `
+    module.exports = {
+        preset: 'ts-jest',
+        testEnvironment: 'node',
+		testMatch: ['**/TEST/**/*.test.ts'],
+    };
+    `;
+
+    fs.writeFileSync(jestConfigPath, jestConfigContent);
+    vscode.window.showInformationMessage('Jest configuration generated successfully.');
+}
+
+function createPackageJson(packageJsonPath: string): void {
+    const packageJsonContent = `
+    {
+        "name": "my-project",
+        "version": "1.0.0",
+        "description": "My project description",
+        "scripts": {
+            "test": "jest"
+        },
+        "devDependencies": {
+            "jest": "^27.4.7",
+            "@types/jest": "^27.0.4",
+            "ts-jest": "^27.0.5"
+        }
+    }
+    `;
+
+    fs.writeFileSync(packageJsonPath, packageJsonContent);
+    vscode.window.showInformationMessage('package.json created successfully.');
 }
 
 // Activate the extension
 export function activate(context: vscode.ExtensionContext) {
 
-	console.log('Extension "exttest" is now active!'); 
+	console.log('Extension "exttest" is now active!');
 
-	let disposable = vscode.commands.registerCommand('exttest.runTests', runTests);
+	setWorkingDirectory();
+	createJestConfig();
 
-	connectToDB();
+	let disposable = vscode.commands.registerCommand('exttest.generateTests', generateTests);
+	let disposable2 = vscode.commands.registerCommand('exttest.runTests', runTests);
 
-	/*
-	const disposable2 = vscode.commands.registerCommand('exttest.showSidebar', () => {
-		// Create and show a new webview panel
-		Create and show a new webview panel as a sidebar
-		const panel = vscode.window.createWebviewPanel(
-			'sidebar', // Identifies the type of the webview. Used internally
-			'USER STORIES EXT', // Title
-			vscode.ViewColumn.One, // Editor column to show the new webview panel in
-			{
-				// Enable scripts in the webview
-				enableScripts: true
-			}
-		);
-
-	
-		// Get the path to your HTML file
-		const htmlPath = vscode.Uri.file(context.asAbsolutePath('src/sidebar.html'));
-	
-		// Read the HTML file as a string
-		const htmlContent = vscode.workspace.fs.readFile(htmlPath).then(buffer => buffer.toString());
-	
-		// Set the HTML content to the webview panel
-		htmlContent.then(content => {
-			panel.webview.html = content;
-		});
-	
-		// Handle messages from the webview
-		panel.webview.onDidReceiveMessage(message => {
-			// Handle button click events
-			switch (message.command) {
-				case 'runTestsButtonClicked':
-					runTests;
-					break;
-			}
-		});
-	}); 
-
-	context.subscriptions.push(disposable2);	
-	vscode.commands.executeCommand('exxttest.showSidebar');*/
 }
 
 export function deactivate() {}
