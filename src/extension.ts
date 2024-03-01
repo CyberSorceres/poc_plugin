@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils')
+const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils');
 
 
 let workingDirectory: string | undefined;
@@ -265,6 +265,15 @@ function createPackageJson(packageJsonPath: string): void {
             "vitest": "^1.0.0",
             "@types/jest": "^27.0.4",
             "ts-jest": "^27.0.5"
+        },
+        "contributes": {
+            "configuration": {
+                "jestrunner.framework": {
+                    "type": "string",
+                    "default": "vitest",
+                    "description": "Specifies the test framework to use for running tests."
+                }
+            }
         }
     }
     `;
@@ -277,6 +286,8 @@ function createPackageJson(packageJsonPath: string): void {
 export function activate(context: vscode.ExtensionContext) {
 
 	console.log('Extension "exttest" is now active!');
+
+	vscode.workspace.getConfiguration().update('jestrunner.framework', 'vitest', vscode.ConfigurationTarget.Global);
 
 	setWorkingDirectory();
 	createViTestConfig();
