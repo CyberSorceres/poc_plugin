@@ -193,7 +193,7 @@ function createTests(UserStories: UserStory[]) {
 async function chiamataAPIBedrock(stringaUserStory: string, stringaCodice: string) {
     try {
 		// Creazione stringhe di collegamento
-		const stringaPreUserStory = "Elabora un test considerata la seguente user story";
+		const stringaPreUserStory = "Elabora un test, utilizzando il framework vitest, e considerata la seguente user story";
 		const stringaPreCodice = " e il seguente codice che dovrebbe soddisfare la user story";
         
 		// Combinazione della user story con il codice corrispondente
