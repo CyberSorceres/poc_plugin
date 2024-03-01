@@ -224,11 +224,11 @@ async function chiamataAPIBedrock(stringaUserStory: string, stringaCodice: strin
     }
 }
 
-async function fetchUserStoriesFromDB(epicStory : string) {
+async function fetchUserStoriesFromDB(tagUserStory : string) {
 	// ENDPOINT API per richiesta user stories da MongoDB
 	const urlAPI = 'API_ENDPOINT';
 	// Costruzione url per richiesta user stories
-	const url = '${urlAPI}/${epicStory}';
+	const url = '${urlAPI}/${tagUserStory}';
 
 	try {
 		// Viene richiesta la risposta con l'url costruito e viene salvata sulla variabile response
