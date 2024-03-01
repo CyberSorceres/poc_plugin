@@ -29,7 +29,10 @@
 				"${workspaceFolder}/out/**/*.js",
 				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "tasks: watch-tests"
+			"preLaunchTask": "tasks: watch-tests",
+			"env": {
+				"PATH": "${env:PATH}:${workspaceFolder}/node_modules/.bin"
+			}
 		}
 	]
 }

@@ -1,8 +1,12 @@
-//import { error } from 'console';
-//import { report } from 'process';
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils');
 
-//class for the user stories
+
+let workingDirectory: string | undefined;
+let projectId: string;
+
 class UserStory {
 	tag: string;
 	content: string;
@@ -23,34 +27,37 @@ class UserStory {
 		console.log(`Tag: ${this.tag}, Content: ${this.content}`);
 	}
 
-	setTag(tag: string) {
-		this.tag = tag;
+	mockTest(description: string){
+	    return `
+		test('${description}', () => {
+			// Write your test code here
+			expect(true).toBe(true); // Example test assertion
+		});
+		`;
 	}
+}
 
-	setContent(content: string) {
-		this.content = content;
-	}
 
-	setDescription(description: string) {
-		this.description = description;
-	}
 
-	getTag() {
-		return this.tag;
-	}
+function setWorkingDirectory(): void {
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders && folders.length > 0) {
+        // Assuming you want to use the first workspace folder as the working directory
+        workingDirectory = folders[0].uri.fsPath;
+        vscode.window.showInformationMessage('Working directory set successfully.');
+    } else {
+        vscode.window.showErrorMessage('No workspace folders found.');
+    }
+}
 
-	getContent() {
-		return this.content;
-	}
-
-	getDescription() {
-		return this.description;
-	}
+function getWorkingDirectory(): string | undefined {
+    return workingDirectory;
 }
 
 // Function to parse the open file for tags
 function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	const userStories: UserStory[] = [];
+	const projectTagRegex = /@PROJECT-(\d+)/g;
 	const initialTagRegex = /@USERSTORY-(\d+)/g;
 	//end tag is @USERSTORY-END then a newline
 	const endTagRegex = /@USERSTORY-END/g;
@@ -59,8 +66,19 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	let loadingContent = false;
 	let currentLineLogged = 0;
 
-	//for each line in the file check if it contains a start tag
-	for (let i = 0; i < document.lineCount; i++) {
+	//first line of the file must contain project tag
+	const firstLine = document.lineAt(0).text;
+	if(projectTagRegex.test(firstLine)) {
+		projectId = firstLine.match(projectTagRegex)![0].split('-')[1];
+		vscode.window.showInformationMessage('Project tag found: ' + projectId);
+	}
+	else {
+		vscode.window.showErrorMessage('No project tag found: the project tag must appear in the first line of the document');
+		return [userStories, 'NO PROJECT TAG WAS FOUND ON THE FIRST LINE'];
+	}
+
+	//for each line in the file check if it contains a start tag, startting on the second line
+	for (let i = 1; i < document.lineCount; i++) {
 		const line = document.lineAt(i);
 		const text = line.text;
 
@@ -104,20 +122,13 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 
 }
 
-function connectToDB() {
-	//connect to the database
-
-}
-
+//TODO
 function getUserStoriesFromDB(UserStories: UserStory[]) {
 
-	//for esch user story, get the description from the database
-
 }
 
-
 // COMMAND runtTests: Run the tests for the user story tags in the current file
-async function runTests() {
+async function generateTests() {
 	
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -151,59 +162,139 @@ async function runTests() {
 		vscode.window.showErrorMessage('There are errors in the file, check the output console for more information', 'OK');
 	}
 
-	getUserStoriesFromDB(US);
+	createTests(US);
+}
+
+//given an UserStory array, create a test for each of them
+function createTests(UserStories: UserStory[]) {
+
+	const workingDirectory = getWorkingDirectory();
+
+	if(workingDirectory === undefined)
+	{
+		vscode.window.showErrorMessage('The working directory is not set, please set it and reload the extension');
+		return;
+	}
+
+	const testDirectoryPath = path.join(workingDirectory, 'TEST');
+	const openFileName = getActiveFileName();
+	if(openFileName === undefined)
+	{
+		vscode.window.showErrorMessage('no file currently open, open a file to gerate it\'s tests');
+		return;
+	}
+	
+	const testFileName = openFileName + '.test.js';
+	const testFilePath = path.join(testDirectoryPath, testFileName);
 
 
+    if (!folderExists(testDirectoryPath)) {
+        createFolder(testDirectoryPath);
+    }
+
+    if (!fileExists(testFilePath)) {
+        createFile(testFilePath);
+    } else {
+        // Wipe file
+        wipeFile(testFilePath);
+    }
+
+	fs.appendFileSync(testFilePath, 'import {expect, test} from \'vitest\'\r\n');
+
+    UserStories.forEach(story => {
+        const mockTest = story.mockTest('This is a test for the user story #' + story.tag);
+        fs.appendFileSync(testFilePath, mockTest);
+    });
+}
+
+function runTests() {
+    // Get the currently active workspace folder
+    const workspaceFolder = getWorkingDirectory();
+    if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder found.');
+        return;
+    }
+
+    // Run ViTest command in the integrated terminal
+    const terminal = vscode.window.createTerminal('ViTest');
+    terminal.sendText('npm test', true);
+    terminal.show();
+}
+
+function createViTestConfig(): void {
+    const workspacePath = getWorkingDirectory();
+    if (!workspacePath) {
+        vscode.window.showErrorMessage('Cannot generate ViTest configuration: Workspace not found.');
+        return;
+    }
+
+    const viTestConfigPath = path.join(workspacePath, 'vitest.config.js');
+    if (fs.existsSync(viTestConfigPath)) {
+        vscode.window.showWarningMessage('ViTest configuration already exists in the workspace.');
+        return;
+    }
+
+    // Create package.json if it doesn't exist
+    const packageJsonPath = path.join(workspacePath, 'package.json');
+    if (!fs.existsSync(packageJsonPath)) {
+        createPackageJson(packageJsonPath);
+    }
+
+    const viTestConfigContent = `
+    module.exports = {
+        preset: 'ts-jest',
+        testEnvironment: 'node',
+		testMatch: ['**/TEST/**/*.test.ts'],
+    };
+    `;
+
+    fs.writeFileSync(viTestConfigPath, viTestConfigContent);
+    vscode.window.showInformationMessage('ViTest configuration generated successfully.');
+}
+
+function createPackageJson(packageJsonPath: string): void {
+    const packageJsonContent = `
+    {
+        "name": "my-project",
+        "version": "1.0.0",
+        "description": "My project description",
+        "scripts": {
+            "test": "vitest"
+        },
+        "devDependencies": {
+            "vitest": "^1.0.0",
+            "@types/jest": "^27.0.4",
+            "ts-jest": "^27.0.5"
+        },
+        "contributes": {
+            "configuration": {
+                "jestrunner.framework": {
+                    "type": "string",
+                    "default": "vitest",
+                    "description": "Specifies the test framework to use for running tests."
+                }
+            }
+        }
+    }
+    `;
+
+    fs.writeFileSync(packageJsonPath, packageJsonContent);
+    vscode.window.showInformationMessage('package.json created successfully.');
 }
 
 // Activate the extension
 export function activate(context: vscode.ExtensionContext) {
 
-	console.log('Extension "exttest" is now active!'); 
+	console.log('Extension "exttest" is now active!');
 
-	let disposable = vscode.commands.registerCommand('exttest.runTests', runTests);
+	vscode.workspace.getConfiguration().update('jestrunner.framework', 'vitest', vscode.ConfigurationTarget.Global);
 
-	connectToDB();
+	setWorkingDirectory();
+	createViTestConfig();
 
-	/*
-	const disposable2 = vscode.commands.registerCommand('exttest.showSidebar', () => {
-		// Create and show a new webview panel
-		Create and show a new webview panel as a sidebar
-		const panel = vscode.window.createWebviewPanel(
-			'sidebar', // Identifies the type of the webview. Used internally
-			'USER STORIES EXT', // Title
-			vscode.ViewColumn.One, // Editor column to show the new webview panel in
-			{
-				// Enable scripts in the webview
-				enableScripts: true
-			}
-		);
+	let disposable = vscode.commands.registerCommand('exttest.generateTests', generateTests);
+	let disposable2 = vscode.commands.registerCommand('exttest.runTests', runTests);
 
-	
-		// Get the path to your HTML file
-		const htmlPath = vscode.Uri.file(context.asAbsolutePath('src/sidebar.html'));
-	
-		// Read the HTML file as a string
-		const htmlContent = vscode.workspace.fs.readFile(htmlPath).then(buffer => buffer.toString());
-	
-		// Set the HTML content to the webview panel
-		htmlContent.then(content => {
-			panel.webview.html = content;
-		});
-	
-		// Handle messages from the webview
-		panel.webview.onDidReceiveMessage(message => {
-			// Handle button click events
-			switch (message.command) {
-				case 'runTestsButtonClicked':
-					runTests;
-					break;
-			}
-		});
-	}); 
-
-	context.subscriptions.push(disposable2);	
-	vscode.commands.executeCommand('exxttest.showSidebar');*/
 }
 
 export function deactivate() {}
