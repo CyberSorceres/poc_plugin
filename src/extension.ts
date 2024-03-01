@@ -190,7 +190,7 @@ function createTests(UserStories: UserStory[]) {
     });
 }
 
-async function chiamataAPI(stringaUserStory: string, stringaCodice: string) {
+async function chiamataAPIBedrock(stringaUserStory: string, stringaCodice: string) {
     try {
 		// Creazione stringhe di collegamento
 		const stringaPreUserStory = "Elabora un test considerata la seguente user story";
@@ -222,6 +222,33 @@ async function chiamataAPI(stringaUserStory: string, stringaCodice: string) {
         console.error('Si è verificato un errore durante la chiamata API:', error);
         return null;
     }
+}
+
+async function fetchUserStoriesFromDB(epicStory : string) {
+	// ENDPOINT API per richiesta user stories da MongoDB
+	const urlAPI = 'API_ENDPOINT';
+	// Costruzione url per richiesta user stories
+	const url = '${urlAPI}/${epicStory}';
+
+	try {
+		// Viene richiesta la risposta con l'url costruito e viene salvata sulla variabile response
+		const response = await fetch(url);
+		// Nel caso di una risposta non valida viene lanciato un errore
+		if (!response.ok) {
+			throw new Error('Errore nella richiesta API');
+		}
+		// Le user stories vengono prelevate dalla risposta in formato Json
+		const userStories = await response.json();
+		// Le user stories vengono convertite a stringa
+		const stringUserStories = JSON.stringify(userStories);
+		// Vengono ritornate le user stories in formato stringa
+		return stringUserStories;
+	} catch (error) {
+		// In caso di errore viene mostrato in console log l'errore
+		console.error('Si è verificato un errore: ', error);
+		// Viene ritornato null in caso di errore
+		return null;
+	}
 }
 
 function runTests() {
