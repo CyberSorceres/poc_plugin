@@ -3,6 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils');
 
+let workingDirectory: string | undefined;
+let projectId: string;
+
 class UserStory {
 	tag: string;
 	content: string;
@@ -23,13 +26,11 @@ class UserStory {
 		console.log(`Tag: ${this.tag}, Content: ${this.content}`);
 	}
 
-	mockTest(description: string){
-	    return chiamataAPIBedrock(description);
+	mockTest(input: string){
+		vscode.window.showInformationMessage(`Going to generate test for US ${input}`);
+	    return chiamataAPIBedrock(input);
 	}
 }
-
-
-let workingDirectory: string | undefined;
 
 function setWorkingDirectory(): void {
     const folders = vscode.workspace.workspaceFolders;
@@ -49,6 +50,7 @@ function getWorkingDirectory(): string | undefined {
 // Function to parse the open file for tags
 function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	const userStories: UserStory[] = [];
+	const projectTagRegex = /@PROJECT-(\d+)/g;
 	const initialTagRegex = /@USERSTORY-(\d+)/g;
 	//end tag is @USERSTORY-END then a newline
 	const endTagRegex = /@USERSTORY-END/g;
@@ -57,8 +59,19 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	let loadingContent = false;
 	let currentLineLogged = 0;
 
-	//for each line in the file check if it contains a start tag
-	for (let i = 0; i < document.lineCount; i++) {
+	//first line of the file must contain project tag
+	const firstLine = document.lineAt(0).text;
+	if(projectTagRegex.test(firstLine)) {
+		projectId = firstLine.match(projectTagRegex)![0].split('-')[1];
+		vscode.window.showInformationMessage('Project tag found: ' + projectId);
+	}
+	else {
+		vscode.window.showErrorMessage('No project tag found: the project tag must appear in the first line of the document');
+		return [userStories, 'NO PROJECT TAG WAS FOUND ON THE FIRST LINE'];
+	}
+
+	//for each line in the file check if it contains a start tag, startting on the second line
+	for (let i = 1; i < document.lineCount; i++) {
 		const line = document.lineAt(i);
 		const text = line.text;
 
@@ -164,7 +177,7 @@ async function createTests(UserStories: UserStory[]) {
 		return;
 	}
 	
-	const testFileName = openFileName + '.test.js';
+	const testFileName = openFileName + '.test.ts';
 	const testFilePath = path.join(testDirectoryPath, testFileName);
 
 
@@ -179,10 +192,12 @@ async function createTests(UserStories: UserStory[]) {
         wipeFile(testFilePath);
     }
 
+	fs.appendFileSync(testFilePath, 'import {expect, test} from \'vitest\'\r\n');
+
 	const mockTestPromises: Promise<string | null>[] = [];
 
     UserStories.forEach(story => {
-        mockTestPromises.push(story.mockTest('This is a test for the user story #' + story.tag));
+        mockTestPromises.push(story.mockTest(story.tag));
     });
 
 	const mockTestResults = await Promise.all(mockTestPromises);
@@ -190,6 +205,7 @@ async function createTests(UserStories: UserStory[]) {
 	mockTestResults.forEach(result => {
 		if (result !== null) {
 			fs.appendFileSync(testFilePath, result);
+			fs.appendFileSync(testFilePath, '\r\n');
 		}
 	});
 }
@@ -198,7 +214,13 @@ async function createTests(UserStories: UserStory[]) {
 async function chiamataAPIBedrock(stringaUserStory: string) {
     try {
 		// Creazione stringa di collegamento
-		const stringaPreUserStory = "Elabora un test, utilizzando il framework vitest, e considerata la seguente user story";
+		const stringaPreUserStory = `
+Sostituisci il seguente tag (lo trovi dopo Tag:) a questo codice, al posto di #TAG, ovunque tu lo trovi
+test('Test for the UserStory #TAG', () => {
+	const UsNumber = #TAG;
+	expect(UsNumber).toBe(#TAG);
+});
+`;
         
 		// Combinazione della user story con il codice corrispondente
         const combinazione = stringaPreUserStory + stringaUserStory;
@@ -227,6 +249,7 @@ async function chiamataAPIBedrock(stringaUserStory: string) {
         console.error('Si è verificato un errore durante la chiamata API:', error);
         return null;
     }
+
 }
 
 async function fetchUserStoriesFromDB(idProject : string) {
@@ -263,21 +286,21 @@ function runTests() {
     }
 
     // Run Jest command in the integrated terminal
-    const terminal = vscode.window.createTerminal('Jest');
-    terminal.sendText('npm test', true); // or any other Jest command
+    const terminal = vscode.window.createTerminal('ViTest');
+    terminal.sendText('npm test', true);
     terminal.show();
 }
 
-function createJestConfig(): void {
+function createViTestConfig(): void {
     const workspacePath = getWorkingDirectory();
     if (!workspacePath) {
-        vscode.window.showErrorMessage('Cannot generate Jest configuration: Workspace not found.');
+        vscode.window.showErrorMessage('Cannot generate ViTest configuration: Workspace not found.');
         return;
     }
 
-    const jestConfigPath = path.join(workspacePath, 'jest.config.js');
-    if (fs.existsSync(jestConfigPath)) {
-        vscode.window.showWarningMessage('Jest configuration already exists in the workspace.');
+    const viTestConfigPath = path.join(workspacePath, 'vitest.config.js');
+    if (fs.existsSync(viTestConfigPath)) {
+        vscode.window.showWarningMessage('ViTest configuration already exists in the workspace.');
         return;
     }
 
@@ -287,7 +310,7 @@ function createJestConfig(): void {
         createPackageJson(packageJsonPath);
     }
 
-    const jestConfigContent = `
+    const viTestConfigContent = `
     module.exports = {
         preset: 'ts-jest',
         testEnvironment: 'node',
@@ -295,8 +318,8 @@ function createJestConfig(): void {
     };
     `;
 
-    fs.writeFileSync(jestConfigPath, jestConfigContent);
-    vscode.window.showInformationMessage('Jest configuration generated successfully.');
+    fs.writeFileSync(viTestConfigPath, viTestConfigContent);
+    vscode.window.showInformationMessage('ViTest configuration generated successfully.');
 }
 
 function createPackageJson(packageJsonPath: string): void {
@@ -306,12 +329,21 @@ function createPackageJson(packageJsonPath: string): void {
         "version": "1.0.0",
         "description": "My project description",
         "scripts": {
-            "test": "jest"
+            "test": "vitest"
         },
         "devDependencies": {
-            "jest": "^27.4.7",
+            "vitest": "^1.0.0",
             "@types/jest": "^27.0.4",
             "ts-jest": "^27.0.5"
+        },
+        "contributes": {
+            "configuration": {
+                "jestrunner.framework": {
+                    "type": "string",
+                    "default": "vitest",
+                    "description": "Specifies the test framework to use for running tests."
+                }
+            }
         }
     }
     `;
@@ -325,8 +357,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 	console.log('Extension "exttest" is now active!');
 
+	vscode.workspace.getConfiguration().update('jestrunner.framework', 'vitest', vscode.ConfigurationTarget.Global);
+
 	setWorkingDirectory();
-	createJestConfig();
+	createViTestConfig();
 
 	let disposable = vscode.commands.registerCommand('exttest.generateTests', generateTests);
 	let disposable2 = vscode.commands.registerCommand('exttest.runTests', runTests);
