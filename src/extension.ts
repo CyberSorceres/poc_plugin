@@ -203,8 +203,8 @@ async function chiamataAPIBedrock(stringaUserStory: string) {
 		// Combinazione della user story con il codice corrispondente
         const combinazione = stringaPreUserStory + stringaUserStory;
         
-        // Costruzione URL dell'endpoint API (Da aggiungere l'ENDPOINT)
-        const url = `URL_ENDPOINT_API?parametro1=${encodeURIComponent(combinazione)}`;
+        // Costruzione URL dell'endpoint API
+        const url = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/bedrock/?message=${encodeURIComponent(combinazione)}`;
 
 		// Viene fatta la richiesta all'API e viene salvata la risposta
         const response = await fetch(url);
@@ -228,15 +228,13 @@ async function chiamataAPIBedrock(stringaUserStory: string) {
     }
 }
 
-async function fetchUserStoriesFromDB(tagUserStory : string) {
+async function fetchUserStoriesFromDB(idProject : string) {
 	// ENDPOINT API per richiesta user stories da MongoDB
-	const urlAPI = 'API_ENDPOINT';
-	// Costruzione url per richiesta user stories
-	const url = '${urlAPI}/${tagUserStory}';
+	const urlAPI = 'https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/getProject?id=${encodeURIComponent(idProject)}';
 
 	try {
 		// Viene richiesta la risposta con l'url costruito e viene salvata sulla variabile response
-		const response = await fetch(url);
+		const response = await fetch(urlAPI);
 		// Nel caso di una risposta non valida viene lanciato un errore
 		if (!response.ok) {
 			throw new Error('Errore nella richiesta API');
