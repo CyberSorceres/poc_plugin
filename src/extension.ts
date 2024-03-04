@@ -24,12 +24,7 @@ class UserStory {
 	}
 
 	mockTest(description: string){
-	    return `
-		test('${description}', () => {
-			// Write your test code here
-			expect(true).toBe(true); // Example test assertion
-		});
-		`;
+	    return chiamataAPIBedrock(description);
 	}
 }
 
@@ -151,7 +146,7 @@ async function generateTests() {
 }
 
 //given an UserStory array, create a test for each of them
-function createTests(UserStories: UserStory[]) {
+async function createTests(UserStories: UserStory[]) {
 
 	const workingDirectory = getWorkingDirectory();
 
@@ -184,20 +179,29 @@ function createTests(UserStories: UserStory[]) {
         wipeFile(testFilePath);
     }
 
+	const mockTestPromises: Promise<string | null>[] = [];
+
     UserStories.forEach(story => {
-        const mockTest = story.mockTest('This is a test for the user story #' + story.tag);
-        fs.appendFileSync(testFilePath, mockTest);
+        mockTestPromises.push(story.mockTest('This is a test for the user story #' + story.tag));
     });
+
+	const mockTestResults = await Promise.all(mockTestPromises);
+
+	mockTestResults.forEach(result => {
+		if (result !== null) {
+			fs.appendFileSync(testFilePath, result);
+		}
+	});
 }
 
-async function chiamataAPIBedrock(stringaUserStory: string, stringaCodice: string) {
+//per il poc utilizza solo la user story
+async function chiamataAPIBedrock(stringaUserStory: string) {
     try {
-		// Creazione stringhe di collegamento
+		// Creazione stringa di collegamento
 		const stringaPreUserStory = "Elabora un test, utilizzando il framework vitest, e considerata la seguente user story";
-		const stringaPreCodice = " e il seguente codice che dovrebbe soddisfare la user story";
         
 		// Combinazione della user story con il codice corrispondente
-        const combinazione = stringaPreUserStory + stringaUserStory + stringaPreCodice + stringaCodice;
+        const combinazione = stringaPreUserStory + stringaUserStory;
         
         // Costruzione URL dell'endpoint API (Da aggiungere l'ENDPOINT)
         const url = `URL_ENDPOINT_API?parametro1=${encodeURIComponent(combinazione)}`;
