@@ -215,11 +215,12 @@ async function chiamataAPIBedrock(stringaUserStory: string) {
         }
 
 		// Ottengo la risposta dell'API in formato JSON
-        const data = await response.json();
-		// Dal formato JSON la risposta viene convertita a stringa
-		const fromJsonToString = JSON.stringify(data);
+        const data = await response.json() as { results: { outputText: string }[] };
+
+		const outputText = data.results[0].outputText;
+		
 		// Viene ritornata la risposta dell'API in formato stringa
-        return fromJsonToString;
+        return outputText;
 
 		// In caso di errore di collegamento viene mostrato l'errore nel console log e non viene ritornato nulla
     } catch (error) {
