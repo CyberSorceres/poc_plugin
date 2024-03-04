@@ -212,21 +212,26 @@ async function createTests(UserStories: UserStory[]) {
 
 //per il poc utilizza solo la user story
 async function chiamataAPIBedrock(stringaUserStory: string) {
+	console.log('calling API, tag: ${stringaUserStory}')
     try {
 		// Creazione stringa di collegamento
 		const stringaPreUserStory = `
-Sostituisci il seguente tag (lo trovi dopo Tag:) a questo codice, al posto di #TAG, ovunque tu lo trovi
+Given the following code snippet, replace every instance of #TAG, with the tag number give me only the code
+Code snippet:
 test('Test for the UserStory #TAG', () => {
 	const UsNumber = #TAG;
 	expect(UsNumber).toBe(#TAG);
 });
+The tag number is ${stringaUserStory}
+
+As a response I only want valid code. Just code, no explanation, no comments, and just one time
 `;
         
 		// Combinazione della user story con il codice corrispondente
-        const combinazione = stringaPreUserStory + stringaUserStory;
+        //const combinazione = stringaPreUserStory + stringaUserStory;
         
         // Costruzione URL dell'endpoint API
-        const url = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/bedrock/?message=${encodeURIComponent(combinazione)}`;
+        const url = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/bedrock/?message=${encodeURIComponent(stringaPreUserStory)}`;
 
 		// Viene fatta la richiesta all'API e viene salvata la risposta
         const response = await fetch(url);
