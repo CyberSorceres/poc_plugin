@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { stringify } from 'querystring';
 const { folderExists, fileExists, createFolder, createFile, wipeFile, getActiveFileName } = require('./utils');
 
 let workingDirectory: string | undefined;
@@ -26,9 +27,9 @@ class UserStory {
 		console.log(`Tag: ${this.tag}, Content: ${this.content}`);
 	}
 
-	mockTest(input: string){
-		vscode.window.showInformationMessage(`Going to generate test for US ${input}`);
-	    return chiamataAPIBedrock(input);
+	mockTest(){
+		//vscode.window.showInformationMessage(`Going to generate test for US ${this.tag}`);
+	    return chiamataAPIBedrock(this.tag, this.content);
 	}
 }
 
@@ -37,7 +38,7 @@ function setWorkingDirectory(): void {
     if (folders && folders.length > 0) {
         // Assuming you want to use the first workspace folder as the working directory
         workingDirectory = folders[0].uri.fsPath;
-        vscode.window.showInformationMessage('Working directory set successfully.');
+        //vscode.window.showInformationMessage('Working directory set successfully.');
     } else {
         vscode.window.showErrorMessage('No workspace folders found.');
     }
@@ -63,7 +64,7 @@ function parseFileForTags(document: vscode.TextDocument): [UserStory[], string]{
 	const firstLine = document.lineAt(0).text;
 	if(projectTagRegex.test(firstLine)) {
 		projectId = firstLine.match(projectTagRegex)![0].split('-')[1];
-		vscode.window.showInformationMessage('Project tag found: ' + projectId);
+		//vscode.window.showInformationMessage('Project tag found: ' + projectId);
 	}
 	else {
 		vscode.window.showErrorMessage('No project tag found: the project tag must appear in the first line of the document');
@@ -197,7 +198,7 @@ async function createTests(UserStories: UserStory[]) {
 	const mockTestPromises: Promise<string | null>[] = [];
 
     UserStories.forEach(story => {
-        mockTestPromises.push(story.mockTest(story.tag));
+        mockTestPromises.push(story.mockTest());
     });
 
 	const mockTestResults = await Promise.all(mockTestPromises);
@@ -211,25 +212,31 @@ async function createTests(UserStories: UserStory[]) {
 }
 
 //per il poc utilizza solo la user story
-async function chiamataAPIBedrock(stringaUserStory: string) {
-	console.log('calling API, tag: ${stringaUserStory}')
+async function chiamataAPIBedrock(UserStoryTag: string, UserStoryID: string) {
+
+	const USdescription = await fetchUserStoriesFromDB(UserStoryID);
+
+	if (USdescription) {
+		vscode.window.showInformationMessage(USdescription); // Joining multiple descriptions with a newline
+	} else {
+		vscode.window.showInformationMessage('No user story description found');
+	}
+
+	console.log(`calling API, tag: ${UserStoryTag}`)
     try {
 		// Creazione stringa di collegamento
 		const stringaPreUserStory = `
-Given the following code snippet, replace every instance of #TAG, with the tag number give me only the code
+Given the following code snippet, replace every instance of #TAG, with the tag number give me only the code, and #Description eith the description that I give you
 Code snippet:
-test('Test for the UserStory #TAG', () => {
+test('#Description', () => {
 	const UsNumber = #TAG;
 	expect(UsNumber).toBe(#TAG);
 });
-The tag number is ${stringaUserStory}
+The tag number is ${UserStoryTag}
+The description is ${USdescription}
 
 As a response I only want valid code. Just code, no explanation, no comments, and just one time
-`;
-        
-		// Combinazione della user story con il codice corrispondente
-        //const combinazione = stringaPreUserStory + stringaUserStory;
-        
+`;      
         // Costruzione URL dell'endpoint API
         const url = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/bedrock/?message=${encodeURIComponent(stringaPreUserStory)}`;
 
@@ -257,30 +264,37 @@ As a response I only want valid code. Just code, no explanation, no comments, an
 
 }
 
-async function fetchUserStoriesFromDB(idProject : string) {
-	// ENDPOINT API per richiesta user stories da MongoDB
-	const urlAPI = 'https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/getProject?id=${encodeURIComponent(idProject)}';
+async function fetchUserStoriesFromDB(userStoryid: string) {
 
-	try {
-		// Viene richiesta la risposta con l'url costruito e viene salvata sulla variabile response
-		const response = await fetch(urlAPI);
-		// Nel caso di una risposta non valida viene lanciato un errore
-		if (!response.ok) {
-			throw new Error('Errore nella richiesta API');
-		}
-		// Le user stories vengono prelevate dalla risposta in formato Json
-		const userStories = await response.json();
-		// Le user stories vengono convertite a stringa
-		const stringUserStories = JSON.stringify(userStories);
-		// Vengono ritornate le user stories in formato stringa
-		return stringUserStories;
+	try{
+	// ENDPOINT API per richiesta user stories da MongoDB
+	const urlAPI = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/getUserStory?id=${userStoryid}`;
+	// Viene fatta la richiesta all'API e viene salvata la risposta
+	const response = await fetch(urlAPI);
+
+	// Viene controllata la risposta
+	if (!response.ok) {
+		throw new Error('Errore nella chiamata API');
+	}
+
+	// Ottengo la risposta dell'API in formato JSON
+	const data = await response.json() as { results: { descript: string }[] };
+	console.log(data);
+
+	const description = data.results[0].descript;
+	console.log('Descript:' + description);
+
+	// Viene ritornata la risposta dell'API in formato stringa
+	//return description;
+	return description;
+
+	// In caso di errore di collegamento viene mostrato l'errore nel console log e non viene ritornato nulla
 	} catch (error) {
-		// In caso di errore viene mostrato in console log l'errore
-		console.error('Si è verificato un errore: ', error);
-		// Viene ritornato null in caso di errore
-		return null;
+	console.error('Si è verificato un errore durante la chiamata API:', error);
+	return null;
 	}
 }
+
 
 function runTests() {
     // Get the currently active workspace folder
@@ -290,7 +304,7 @@ function runTests() {
         return;
     }
 
-    // Run Jest command in the integrated terminal
+    // Run ViTest command in the integrated terminal
     const terminal = vscode.window.createTerminal('ViTest');
     terminal.sendText('npm test', true);
     terminal.show();
@@ -305,7 +319,7 @@ function createViTestConfig(): void {
 
     const viTestConfigPath = path.join(workspacePath, 'vitest.config.js');
     if (fs.existsSync(viTestConfigPath)) {
-        vscode.window.showWarningMessage('ViTest configuration already exists in the workspace.');
+        //vscode.window.showWarningMessage('ViTest configuration already exists in the workspace.');
         return;
     }
 
@@ -369,7 +383,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let disposable = vscode.commands.registerCommand('exttest.generateTests', generateTests);
 	let disposable2 = vscode.commands.registerCommand('exttest.runTests', runTests);
-
 }
 
 export function deactivate() {}
