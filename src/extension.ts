@@ -265,34 +265,17 @@ As a response I only want valid code. Just code, no explanation, no comments, an
 }
 
 async function fetchUserStoriesFromDB(userStoryid: string) {
+	const apiUrl = 'https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/getUserStory?id=';
+	const endPoint = `${apiUrl}${userStoryid}`;
 
-	try{
-	// ENDPOINT API per richiesta user stories da MongoDB
-	const urlAPI = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/getUserStory?id=${userStoryid}`;
-	// Viene fatta la richiesta all'API e viene salvata la risposta
-	const response = await fetch(urlAPI);
+	const response = await fetch(endPoint);
 
-	// Viene controllata la risposta
 	if (!response.ok) {
-		throw new Error('Errore nella chiamata API');
+		throw new Error('Errore nella richiesta API');
 	}
 
-	// Ottengo la risposta dell'API in formato JSON
-	const data = await response.json() as { results: { descript: string }[] };
-	console.log(data);
-
-	const description = data.results[0].descript;
-	console.log('Descript:' + description);
-
-	// Viene ritornata la risposta dell'API in formato stringa
-	//return description;
-	return description;
-
-	// In caso di errore di collegamento viene mostrato l'errore nel console log e non viene ritornato nulla
-	} catch (error) {
-	console.error('Si è verificato un errore durante la chiamata API:', error);
-	return null;
-	}
+	const jsonResponse = await response.json() as any;
+	return JSON.stringify(jsonResponse.descript);
 }
 
 
