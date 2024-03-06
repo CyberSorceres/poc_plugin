@@ -226,17 +226,20 @@ async function chiamataAPIBedrock(UserStoryTag: string, UserStoryID: string) {
     try {
 		// Creazione stringa di collegamento
 		const stringaPreUserStory = `
-Given the following code snippet, replace every instance of #TAG, with the tag number give me only the code, and #Description eith the description that I give you
+Given the following code snippet, replace every instance of #TAG with the tag number
+Give me only the code
 Code snippet:
-test('#Description', () => {
+test(${USdescription}, () => {
 	const UsNumber = #TAG;
 	expect(UsNumber).toBe(#TAG);
 });
 The tag number is ${UserStoryTag}
-The description is ${USdescription}
 
-As a response I only want valid code. Just code, no explanation, no comments, and just one time
+As a response I only want valid code. Just code, no explanation, no comments, and just one time.
+If you give me anything that isn't code, make it a comment
 `;      
+
+		console.log(stringaPreUserStory);
         // Costruzione URL dell'endpoint API
         const url = `https://d3ga6czusb.execute-api.eu-central-1.amazonaws.com/dev/bedrock/?message=${encodeURIComponent(stringaPreUserStory)}`;
 
